@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<body>
+<title>DOJO Node JS</title>
+<h1>DOJO Node JS</h1>
+
+<p>API para buscar direcciones en Google Maps.</p>
+
+<div class="box-body">								  
+  <div class="col-xs-24 col-md-24">
+	<div class="col-xs-12">
+	  <div class="form-group">
+	  
+		Departamento: <input type="text" name="departamento" id="departamento"  placeholder="Nombre de departamento"><br>
+		Ciudad: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <input type="text" name="ciudad" id="ciudad" placeholder="Nombre de ciudad"><br>
+		<label>Dirección: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</label>
+		<input id="direccion" type="textbox" class="form-control" placeholder="Ejemplo: Cra 69B # 29-2"> <br><br>
+		
+		<input type="button" value="Buscar Dirección" class="btn btn-primary" onclick="buscarDireccion()">	<BR>	
+		<input type="button" value="Geolocalizar" class="btn btn-primary" onclick="geolocalizar()">	<BR><BR>	
+		
+		<a id="boton" style="cursor:help;">Ayuda</a>
+	  </div>    
+		<div id="ayuda">
+			<span>
+				Escriba su dirección especificando primero el departamento y la ciudad, 
+				luego haga clic en <b>"Buscar dirección"</b> para ubicar el marcador, si la búsqueda no es exacta, puede ubicar 
+				manualmente dicho marcador.
+			</span>
+		</div>
+		
+		<div id="map-canvas" style="width: 90%; height: 500px; position: relative; overflow: hidden; transform: translateZ(0px); background-color: rgb(229, 227, 223);"></div>
+		<input type="hidden" id="coordenadas" name="coordenadas" value="" readonly=""><br>	
+		
+	</div>
+  </div>				  
+  </div>
+
+</body>
+
+<!--mapa google-->
+<script src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false"></script>
+<script>
+	var geocoder;
+	var map;
+	var marker;
+	var infowindow = new google.maps.InfoWindow();
+
+	function initialize() {
+		geocoder = new google.maps.Geocoder();
+		var centro;
+		var zoom;
+
+		//centro = new google.maps.LatLng(4.597673710813964, -74.05074216874999);
+		zoom = 16;	
+
+		var mapOptions = {		
+			//center: centro, 	
+			zoom: zoom
+		};
+
+		map = new google.maps.Map(document.getElementById('map-canvas'),  mapOptions);
+		
+		// geolocalización HTML5
+		if(navigator.geolocation) {
+			navigator.geolocation.getCurrentPosition(function(position) {	
+				var pos = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);				
+				google.maps.event.trigger(map, 'resize');	
+				map.setCenter(pos);				
+				var marcador_posicion = new google.maps.Marker({
+					position: pos,
+					title: 'Mi ubicación',				
+					map: map
+				});
+				 
+			}, function() {
+			  handleNoGeolocation(true);
+			},
+			{maximumAge:Infinity,timeout:5000}
+			);		
+		}else { alert("Geolocalización no permitida o no soportada por el navegador web actual");
+			// Browser doesn't support Geolocation    
+			var pos2 = new google.maps.LatLng(55.1080733, -71.3824377);
+			map.setCenter(pos2);
+			map.setZoom(16); 
+			handleNoGeolocation(false);
+		}
+		//
+		/*var centro = centro;			
+		marker = new google.maps.Marker({  
+			position:centro,	  
+			draggable: true,
+			title: 'Posición'
+		});
+
+		marker.setMap(map);*/
+
+		google.maps.event.addListener(marker, 'click', function() {  	
+			var lat = marker.getPosition().lat();
+			var lng = marker.getPosition().lng();			
+			if (infowindow) {infowindow.close();}		
+			obtener_dir(marker,map,infowindow);	
+		});
+
+		google.maps.event.addListener(marker, 'dragend', function()	{
+			if (infowindow) {infowindow.close();}	
+			var c1 = marker.getPosition().lat();
+			var c2 = marker.getPosition().lng();		
+			var lt = c1.toString().length;
+			var ln = c2.toString().length;		
+			var coordenadas = new google.maps.LatLng(c1,c2);		
+			var c = document.getElementById("coordenadas");
+			c.value = coordenadas;			
+			obtener_dir(marker,map,infowindow);
+		});    
+	}
+	
+	function buscarDireccion() {
+		/*var temp = document.getElementById('departamento');
+		var dir1 = temp.options[temp.selectedIndex].text;
+		temp = document.getElementById('ciudad');
+		var dir2 = temp.options[temp.selectedIndex].text;*/
+		
+		var dir1 = document.getElementById('departamento').value;
+		var dir2 = document.getElementById('ciudad').value;
+		var dir3 = document.getElementById('direccion').value;
+		var direccion = dir1 +", "+ dir2+", "+dir3;
+		geocoder.geocode( { 'address': direccion}, function(results, status) {
+			if (status == google.maps.GeocoderStatus.OK) {
+				map.setCenter(results[0].geometry.location);      	  
+				map.setZoom(16);
+				
+				var marcador_posicion = new google.maps.Marker({
+					position: results[0].geometry.location,
+					title: 'Mi ubicación',				
+					map: map
+				});
+				
+				cambiar_posicion_marcador(marker, map, results[0].geometry.location, infowindow);	  	  
+			} else {      
+			alert("Geocodificación no satisfactoria, recuerda especificar departamento y ciudad");
+			}
+		});
+	}
+	
+	function geolocalizar(){
+	
+		var zoom = 15;	
+
+		var mapOptions = {			
+			zoom: zoom
+		};
+		map = new google.maps.Map(document.getElementById('map-canvas'),  mapOptions);
+		
+		// geolocalización HTML5
+		if(navigator.geolocation) {
+			navigator.geolocation.getCurrentPosition(function(position) {	
+				var pos = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);				
+				google.maps.event.trigger(map, 'resize');	
+				map.setCenter(pos);				
+				var marcador_posicion = new google.maps.Marker({
+				position: pos,
+				title: 'Mi ubicación',				
+				map: map
+			});
+				 
+			}, function() {
+			  handleNoGeolocation(true);
+			},
+			{maximumAge:Infinity,timeout:5000}
+			);		
+		}else { alert("Geolocalización no permitida o no soportada por el navegador web actual");
+			// Browser doesn't support Geolocation    
+			var pos2 = new google.maps.LatLng(55.1080733, -71.3824377);
+			map.setCenter(pos2);
+			map.setZoom(16); 
+			handleNoGeolocation(false);
+		}
+	}
+
+	function cambiar_posicion_marcador(marker, map, posicion, infowindow) {    
+		marker.setPosition(posicion);
+		var coordenadas = posicion;
+		var c = document.getElementById("coordenadas");
+		c.value = coordenadas;	
+		obtener_dir(marker,map,infowindow);	
+	}
+
+	function actualizar_datos(marker){	
+		var latitud = document.getElementById("latitud");
+		latitud.value = marker.getPosition().lat();
+		var longitud = document.getElementById("longitud");
+		longitud.value = marker.getPosition().lng();
+	}
+
+	function obtener_dir(marker,map,infowindow) {
+		var input = document.getElementById('coordenadas').value;
+		input = input.substring(1, input.length-1);
+		var latlngStr = input.split(',', 2);
+		var lat = parseFloat(latlngStr[0]);
+		var lng = parseFloat(latlngStr[1]);
+		var latlng = new google.maps.LatLng(lat, lng);    
+		var h = geocoder.geocode({'latLng': latlng}, function(results, status) {
+			if (status == google.maps.GeocoderStatus.OK) {
+				if (results[0]) {		
+					marker.setPosition(latlng);        
+					if (infowindow) {infowindow.close();}		
+					infowindow.setContent(results[0].formatted_address);
+					infowindow.open(map, marker);		
+					document.getElementById("dir").value = results[0].formatted_address; /*direccion para caja texto*/		
+				} else{
+					alert('No se hallaron resultados');			
+				}
+			} else {
+				alert('Geocodificación no satisfactoria, inténtalo de nuevo');	  
+			}		
+		}); 
+	}
+	google.maps.event.addDomListener(window, 'load', initialize);
+
+	function validar_ubic() {
+
+		if (typeof marker.getPosition() != "undefined") {
+			alert("coordenadas: " + marker.getPosition() );	
+		}else
+		alert("Dirección no especificada ");	
+	}
+
+	function limpiar_dir(){
+		document.getElementById("coordenadas").value = "";
+		document.getElementById("dir").value = "";	
+	}
+	
+</script>
+
+</html>
